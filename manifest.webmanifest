@@ -1,0 +1,9 @@
+{
+  "name": "PharmaFlow",
+  "short_name": "PharmaFlow",
+  "start_url": "index.php",
+  "display": "standalone",
+  "background_color": "#0B3B37",
+  "theme_color": "#0F766E",
+  "icons": [{ "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

@@ -1,0 +1,5 @@
+# Secrets et fichiers générés sur le serveur — ne jamais versionner
+config.php
+install.lock
+*.zip
+.hostinger/
