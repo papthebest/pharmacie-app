@@ -4,17 +4,17 @@ $me = user();
 $jours = (int)setting('delai_alerte_peremption', '90');
 
 $today = one("SELECT COUNT(*) AS nb, COALESCE(SUM(total),0) AS ca, COALESCE(SUM(part_assurance),0) AS ass
-              FROM sales WHERE statut = 'payee' AND DATE(paid_at) = CURDATE()");
-$pending = (int)val("SELECT COUNT(*) FROM sales WHERE statut = 'en_attente'");
+              FROM sales WHERE pharmacy_id = ? AND statut = 'payee' AND DATE(paid_at) = CURDATE()", [ph()]);
+$pending = (int)val("SELECT COUNT(*) FROM sales WHERE pharmacy_id = ? AND statut = 'en_attente'", [ph()]);
 $low = (int)val("SELECT COUNT(*) FROM (SELECT p.id, p.seuil_alerte,
                  COALESCE((SELECT SUM(quantite) FROM lots l WHERE l.product_id = p.id AND l.date_peremption >= CURDATE()),0) AS st
-                 FROM products p WHERE p.actif = 1) x WHERE st <= seuil_alerte");
-$soon = (int)val("SELECT COUNT(*) FROM lots WHERE quantite > 0 AND date_peremption BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL $jours DAY)");
-$expired = (int)val("SELECT COUNT(*) FROM lots WHERE quantite > 0 AND date_peremption < CURDATE()");
+                 FROM products p WHERE p.pharmacy_id = ? AND p.actif = 1) x WHERE st <= seuil_alerte", [ph()]);
+$soon = (int)val("SELECT COUNT(*) FROM lots WHERE pharmacy_id = ? AND quantite > 0 AND date_peremption BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL $jours DAY)", [ph()]);
+$expired = (int)val("SELECT COUNT(*) FROM lots WHERE pharmacy_id = ? AND quantite > 0 AND date_peremption < CURDATE()", [ph()]);
 
 $days = [];
 for ($i = 13; $i >= 0; $i--) $days[date('Y-m-d', strtotime("-$i day"))] = 0;
-foreach (all("SELECT DATE(paid_at) d, SUM(total) t FROM sales WHERE statut = 'payee' AND paid_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY) GROUP BY DATE(paid_at)") as $r) {
+foreach (all("SELECT DATE(paid_at) d, SUM(total) t FROM sales WHERE pharmacy_id = ? AND statut = 'payee' AND paid_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY) GROUP BY DATE(paid_at)", [ph()]) as $r) {
     $days[$r['d']] = (int)$r['t'];
 }
 $max = max(1, max($days));

@@ -14,6 +14,14 @@ $CONFIG = require ROOT . '/config.php';
 ini_set('display_errors', !empty($CONFIG['debug']) ? '1' : '0');
 error_reporting(E_ALL);
 
+// Erreur imprévue : message lisible pour l'utilisateur, détail dans le journal du serveur.
+set_exception_handler(function (Throwable $ex) use ($CONFIG): void {
+    error_log('PharmaFlow: ' . $ex->getMessage() . ' @ ' . $ex->getFile() . ':' . $ex->getLine());
+    if (!headers_sent()) http_response_code(500);
+    echo '<div class="flash err" style="margin:16px">Une erreur est survenue. Rechargez la page ; si le problème persiste, contactez PharmaFlow.'
+       . (!empty($CONFIG['debug']) ? '<br><small>' . htmlspecialchars($ex->getMessage(), ENT_QUOTES, 'UTF-8') . '</small>' : '') . '</div>';
+});
+
 session_name('pharmaflow');
 session_set_cookie_params([
     'httponly' => true,
@@ -58,7 +66,7 @@ function setting(string $k, string $default = ''): string
     static $cache = null;
     if ($cache === null) {
         $cache = [];
-        foreach (all('SELECT k, v FROM settings') as $r) $cache[$r['k']] = (string)$r['v'];
+        foreach (all('SELECT k, v FROM settings WHERE pharmacy_id = ?', [ph()]) as $r) $cache[$r['k']] = (string)$r['v'];
     }
     return $cache[$k] ?? $default;
 }
@@ -120,6 +128,13 @@ function csrf_check(): void
 }
 
 /* ---------- Authentification & rôles ---------- */
+// Hash factice : garde un temps de réponse identique quand le compte n'existe pas.
+const DUMMY_HASH = '$2y$10$zciRkaoNLHCUQfhFc/1Kbu7joWdHy4njGwL6EMamB47AegCy/frle';
+/** Code pharmacie normalisé : majuscules, lettres et chiffres uniquement. */
+function norm_code(string $c): string
+{
+    return substr(preg_replace('/[^A-Z0-9]/', '', strtoupper($c)), 0, 20);
+}
 const ROLES = [
     'gerant' => 'Gérant',
     'pharmacien' => 'Pharmacien',
@@ -152,6 +167,42 @@ function user(): ?array
     }
     return $u;
 }
+/** Identifiant de la pharmacie de l'utilisateur connecté (0 si personne n'est connecté). */
+function ph(): int
+{
+    $u = user();
+    return $u ? (int)$u['pharmacy_id'] : 0;
+}
+/** Pharmacie de l'utilisateur connecté. */
+function pharmacy(): ?array
+{
+    static $p = false;
+    if ($p === false) $p = ph() ? one('SELECT * FROM pharmacies WHERE id = ?', [ph()]) : null;
+    return $p;
+}
+/** Motif de blocage d'une pharmacie (suspendue ou abonnement expiré), ou null si elle peut travailler. */
+function pharmacy_block(?array $p): ?string
+{
+    if (!$p) return 'Pharmacie introuvable.';
+    if ((int)$p['actif'] !== 1) return 'Le compte de cette pharmacie est suspendu. Contactez PharmaFlow.';
+    if ($p['abonnement_fin'] !== null && $p['abonnement_fin'] < date('Y-m-d')) {
+        return 'L\'abonnement de cette pharmacie a expiré le ' . dfr($p['abonnement_fin']) . '. Contactez PharmaFlow pour le renouveler.';
+    }
+    return null;
+}
+/** Jours restants avant la fin de l'abonnement (null = sans échéance). */
+function abonnement_jours(?array $p): ?int
+{
+    if (!$p || $p['abonnement_fin'] === null) return null;
+    return (int)floor((strtotime($p['abonnement_fin']) - strtotime(date('Y-m-d'))) / 86400);
+}
+/** Super-administrateur de la plateforme connecté, ou null. */
+function admin(): ?array
+{
+    static $a = false;
+    if ($a === false) $a = !empty($_SESSION['aid']) ? one('SELECT * FROM admins WHERE id = ?', [$_SESSION['aid']]) : null;
+    return $a;
+}
 function can(string $right): bool
 {
     $u = user();
@@ -173,20 +224,20 @@ function require_right(string $right): void
 
 function open_session_for(int $uid): ?array
 {
-    return one('SELECT * FROM cash_sessions WHERE user_id = ? AND closed_at IS NULL ORDER BY id DESC LIMIT 1', [$uid]);
+    return one('SELECT * FROM cash_sessions WHERE pharmacy_id = ? AND user_id = ? AND closed_at IS NULL ORDER BY id DESC LIMIT 1', [ph(), $uid]);
 }
 
 /* ---------- Stock ---------- */
 /** Stock vendable (lots non périmés) par produit */
 function stock_dispo(int $pid): int
 {
-    return (int)val('SELECT COALESCE(SUM(quantite),0) FROM lots WHERE product_id = ? AND quantite > 0 AND date_peremption >= CURDATE()', [$pid]);
+    return (int)val('SELECT COALESCE(SUM(quantite),0) FROM lots WHERE pharmacy_id = ? AND product_id = ? AND quantite > 0 AND date_peremption >= CURDATE()', [ph(), $pid]);
 }
 /** Quantités déjà réservées par les bons en attente */
 function stock_reserve(int $pid, int $excludeSale = 0): int
 {
     return (int)val("SELECT COALESCE(SUM(l.quantite),0) FROM sale_lines l JOIN sales s ON s.id = l.sale_id
-                     WHERE s.statut = 'en_attente' AND l.product_id = ? AND s.id <> ?", [$pid, $excludeSale]);
+                     WHERE s.pharmacy_id = ? AND s.statut = 'en_attente' AND l.product_id = ? AND s.id <> ?", [ph(), $pid, $excludeSale]);
 }
 
 require APP . '/layout.php';

@@ -1,6 +1,14 @@
-# PharmaFlow — gestion de pharmacie (vente, caisse, stock)
+# PharmaFlow — gestion de pharmacie en SaaS (vente, caisse, stock)
 
-Application web PHP 8 + MySQL, sans dépendance, prévue pour l'hébergement **Hostinger Premium / Business** (ou tout hébergement PHP + MySQL).
+Application web PHP 8 + MySQL multi-pharmacies, sans dépendance, prévue pour l'hébergement **Hostinger Premium / Business** (ou tout hébergement PHP + MySQL).
+
+## Fonctionnement en SaaS
+
+Une seule installation sert plusieurs pharmacies. Chaque pharmacie a ses propres utilisateurs, médicaments, stock, ventes et caisse ; les données d'une pharmacie ne sont jamais visibles par une autre.
+
+- **Administration de la plateforme** (`index.php?p=admin`) : le super-administrateur crée les pharmacies et leur gérant, suit les abonnements, suspend ou supprime un compte et réinitialise le mot de passe d'un gérant.
+- **Abonnement** : chaque pharmacie a une date de fin d'abonnement. Après paiement, le super-administrateur la prolonge (+1, +3, +6 mois ou +1 an). Le lendemain de l'échéance, l'accès de la pharmacie est bloqué ; le gérant est prévenu 7 jours avant.
+- **Connexion du personnel** (`index.php`) : code pharmacie + identifiant + mot de passe. Le même identifiant peut exister dans deux pharmacies.
 
 ## Fonctions
 
@@ -24,13 +32,18 @@ Application web PHP 8 + MySQL, sans dépendance, prévue pour l'hébergement **H
 2. **hPanel › Gestionnaire de fichiers** : ouvrez `public_html` (ou le dossier d'un sous-domaine, par exemple `pharma.mondomaine.com`), envoyez `pharmaflow.zip`, puis faites un clic droit › **Extraire**. Les fichiers `index.php`, `install.php`, `app/`… doivent se retrouver directement dans le dossier.
 3. **hPanel › Avancé › Configuration PHP** : choisissez **PHP 8.1 ou plus récent**.
 4. **SSL** : activez le certificat gratuit pour le domaine. L'application force le HTTPS.
-5. Ouvrez `https://votre-domaine/install.php`. Le serveur MySQL est `localhost`. Saisissez la base, l'utilisateur et le mot de passe, le nom de la pharmacie et le compte gérant.
+5. Ouvrez `https://votre-domaine/install.php`. Le serveur MySQL est `localhost`. Saisissez la base, l'utilisateur et le mot de passe, puis le compte super-administrateur.
 6. **Supprimez `install.php`** du serveur une fois l'installation terminée.
-7. Connectez-vous et suivez cet ordre :
+7. Ouvrez `index.php?p=admin`, connectez-vous et créez la première pharmacie avec son gérant.
+8. Le gérant se connecte avec le code pharmacie et suit cet ordre :
    1. Paramètres : assurances et fournisseurs ;
    2. Utilisateurs ;
    3. Médicaments ;
    4. Réceptions, pour créer les lots et donc le stock.
+
+## Mise à jour du site
+
+`config.php` et `install.lock` n'existent que sur le serveur. Un redéploiement complet de l'archive efface le contenu du dossier : il faut alors les renvoyer, sinon le site redirige vers l'installation.
 
 ## Matériel conseillé
 

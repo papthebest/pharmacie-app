@@ -14,15 +14,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $d['stupefiant'] = post('stupefiant') ? 1 : 0;
     if ($d['stupefiant']) $d['ordonnance'] = 1;
     $d['actif'] = post('actif', '1') ? 1 : 0;
-    if ($d['code_barre'] && val('SELECT id FROM products WHERE code_barre = ? AND id <> ?', [$d['code_barre'], $id])) {
+    if ($d['code_barre'] && val('SELECT id FROM products WHERE pharmacy_id = ? AND code_barre = ? AND id <> ?', [ph(), $d['code_barre'], $id])) {
         flash('Ce code-barres est déjà utilisé par un autre produit.', 'err');
         redirect('produits', $id ? ['edit' => $id] : ['new' => 1]);
     }
     if ($id) {
         $set = implode(', ', array_map(fn($k) => "$k = ?", array_keys($d)));
-        q("UPDATE products SET $set WHERE id = ?", [...array_values($d), $id]);
+        q("UPDATE products SET $set WHERE id = ? AND pharmacy_id = ?", [...array_values($d), $id, ph()]);
         flash('Médicament mis à jour.');
     } else {
+        $d = ['pharmacy_id' => ph()] + $d;
         $cols = implode(', ', array_keys($d));
         q("INSERT INTO products ($cols) VALUES (" . rtrim(str_repeat('?,', count($d)), ',') . ')', array_values($d));
         flash('Médicament ajouté. Enregistrez une réception pour lui donner du stock.');
@@ -30,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('produits');
 }
 
-$edit = get('edit') ? one('SELECT * FROM products WHERE id = ?', [(int)get('edit')]) : (get('new') ? ['id' => 0, 'seuil_alerte' => 10, 'actif' => 1] : null);
+$edit = get('edit') ? one('SELECT * FROM products WHERE id = ? AND pharmacy_id = ?', [(int)get('edit'), ph()]) : (get('new') ? ['id' => 0, 'seuil_alerte' => 10, 'actif' => 1] : null);
 
 page_header('Médicaments', 'produits');
 
@@ -58,12 +59,17 @@ if ($edit !== null):
 <?php page_footer(); return; endif;
 
 $s = get('q');
-$like = '%' . $s . '%';
+$w = 'p.pharmacy_id = ?';
+$params = [ph()];
+if ($s !== '') {
+    $w .= ' AND (p.nom LIKE ? OR p.dci LIKE ? OR p.code_barre = ?)';
+    array_push($params, '%' . $s . '%', '%' . $s . '%', $s);
+}
 $rows = all("SELECT p.*,
              (SELECT COALESCE(SUM(quantite),0) FROM lots l WHERE l.product_id = p.id AND l.date_peremption >= CURDATE()) AS stock,
              (SELECT MIN(date_peremption) FROM lots l WHERE l.product_id = p.id AND l.quantite > 0 AND l.date_peremption >= CURDATE()) AS proch
-             FROM products p WHERE (? = '' OR p.nom LIKE ? OR p.dci LIKE ? OR p.code_barre = ?)
-             ORDER BY p.actif DESC, p.nom LIMIT 300", [$s, $like, $like, $s]);
+             FROM products p WHERE $w
+             ORDER BY p.actif DESC, p.nom LIMIT 300", $params);
 ?>
 <div class="card">
   <div class="row between">

@@ -28,7 +28,7 @@ function page_header(string $title, string $active = ''): void
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?> · <?= e($pharma) ?></title>
-<link rel="stylesheet" href="assets/app.css?v=1">
+<link rel="stylesheet" href="assets/app.css?v=2">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0F766E">
 <meta name="csrf" content="<?= csrf_token() ?>">
@@ -57,7 +57,11 @@ function page_header(string $title, string $active = ''): void
     </header>
     <?php foreach ($_SESSION['flash'] ?? [] as [$t, $m]): ?>
       <div class="flash <?= e($t) ?>"><?= e($m) ?></div>
-    <?php endforeach; unset($_SESSION['flash']); ?>
+    <?php endforeach; unset($_SESSION['flash']);
+    $jr = abonnement_jours(pharmacy());
+    if ($jr !== null && $jr <= 7 && $u['role'] === 'gerant'): ?>
+      <div class="flash err">Abonnement PharmaFlow : <?= $jr <= 0 ? 'il expire aujourd\'hui' : 'il expire dans ' . $jr . ' jour' . ($jr > 1 ? 's' : '') ?> (le <?= dfr(pharmacy()['abonnement_fin']) ?>). Contactez PharmaFlow pour le renouveler, sinon l'accès sera bloqué.</div>
+    <?php endif; ?>
 <?php else: ?>
 <div class="auth">
 <?php endif;
@@ -75,4 +79,44 @@ function page_footer(): void
 </body>
 </html>
 <?php
+}
+
+/* ---------- Espace super-administrateur ---------- */
+function admin_header(string $title): void
+{
+    $a = admin();
+    ?><!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title><?= e($title) ?> · Administration PharmaFlow</title>
+<link rel="stylesheet" href="assets/app.css?v=2">
+<meta name="theme-color" content="#0B3B37">
+</head>
+<body>
+<?php if ($a): ?>
+<header class="admbar">
+  <div class="brand"><span class="logo">✚</span><div><strong>PharmaFlow</strong><small>Administration de la plateforme</small></div></div>
+  <nav>
+    <a href="<?= url('admin') ?>">Pharmacies</a>
+    <a href="<?= url('admin', ['a' => 'compte']) ?>"><?= e($a['nom']) ?></a>
+    <a href="<?= url('admin_logout') ?>">Déconnexion</a>
+  </nav>
+</header>
+<main class="adm">
+  <h1><?= e($title) ?></h1>
+  <?php foreach ($_SESSION['flash'] ?? [] as [$t, $m]): ?>
+    <div class="flash <?= e($t) ?>"><?= e($m) ?></div>
+  <?php endforeach; unset($_SESSION['flash']); ?>
+<?php else: ?>
+<div class="auth">
+<?php endif;
+}
+
+function admin_footer(): void
+{
+    echo admin() ? "</main>\n" : "</div>\n";
+    echo "</body>\n</html>\n";
 }

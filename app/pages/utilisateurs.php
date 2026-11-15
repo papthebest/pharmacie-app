@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pass = (string)post('password');
     $err = '';
     if ($nom === '' || $login === '' || !isset(ROLES[$role])) $err = 'Nom, identifiant et rôle sont obligatoires.';
-    elseif (val('SELECT id FROM users WHERE login = ? AND id <> ?', [$login, $id])) $err = 'Cet identifiant est déjà pris.';
+    elseif (val('SELECT id FROM users WHERE pharmacy_id = ? AND login = ? AND id <> ?', [ph(), $login, $id])) $err = 'Cet identifiant est déjà pris.';
     elseif (!$id && strlen($pass) < 6) $err = 'Mot de passe : 6 caractères minimum.';
     elseif ($pass !== '' && strlen($pass) < 6) $err = 'Mot de passe : 6 caractères minimum.';
     elseif ($id === (int)$me['id'] && ($role !== 'gerant' || !post('actif'))) $err = 'Vous ne pouvez pas retirer vos propres droits de gérant.';
@@ -18,11 +18,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $enc = post('peut_encaisser') ? 1 : 0;
     $actif = post('actif') ? 1 : 0;
     if ($id) {
-        q('UPDATE users SET nom = ?, login = ?, role = ?, peut_encaisser = ?, actif = ? WHERE id = ?', [$nom, $login, $role, $enc, $actif, $id]);
-        if ($pass !== '') q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash($pass, PASSWORD_DEFAULT), $id]);
+        q('UPDATE users SET nom = ?, login = ?, role = ?, peut_encaisser = ?, actif = ? WHERE id = ? AND pharmacy_id = ?', [$nom, $login, $role, $enc, $actif, $id, ph()]);
+        if ($pass !== '') q('UPDATE users SET password_hash = ? WHERE id = ? AND pharmacy_id = ?', [password_hash($pass, PASSWORD_DEFAULT), $id, ph()]);
     } else {
-        q('INSERT INTO users (nom, login, password_hash, role, peut_encaisser, actif) VALUES (?,?,?,?,?,?)',
-            [$nom, $login, password_hash($pass, PASSWORD_DEFAULT), $role, $enc, $actif]);
+        q('INSERT INTO users (pharmacy_id, nom, login, password_hash, role, peut_encaisser, actif) VALUES (?,?,?,?,?,?,?)',
+            [ph(), $nom, $login, password_hash($pass, PASSWORD_DEFAULT), $role, $enc, $actif]);
     }
     flash('Utilisateur enregistré.');
     redirect('utilisateurs');
@@ -31,7 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 page_header('Utilisateurs', 'utilisateurs');
 if (get('edit')):
     $u = get('edit') === 'new' ? ['id' => 0, 'nom' => '', 'login' => '', 'role' => 'vendeur', 'peut_encaisser' => 0, 'actif' => 1]
-        : one('SELECT * FROM users WHERE id = ?', [(int)get('edit')]); ?>
+        : one('SELECT * FROM users WHERE id = ? AND pharmacy_id = ?', [(int)get('edit'), ph()]);
+    if (!$u) { echo '<div class="card">Utilisateur introuvable.</div>'; page_footer(); return; } ?>
   <form method="post" class="card narrow">
     <?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
     <h2><?= $u['id'] ? 'Modifier ' . e($u['nom']) : 'Nouvel utilisateur' ?></h2>
@@ -45,7 +46,7 @@ if (get('edit')):
   </form>
 <?php page_footer(); return; endif;
 
-$users = all('SELECT * FROM users ORDER BY actif DESC, role, nom');
+$users = all('SELECT * FROM users WHERE pharmacy_id = ? ORDER BY actif DESC, role, nom', [ph()]);
 ?>
 <div class="card">
   <div class="row between"><p class="muted">Gérant : tout · Pharmacien : comptoir, stupéfiants, stock, réceptions · Vendeur : comptoir · Caissier : caisse.</p>

@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $qty = intv($_POST['quantite'][$i] ?? 0);
         $pa = intv($_POST['prix_achat'][$i] ?? 0);
         if ($pid <= 0 || $qty <= 0) continue;
-        $name = val('SELECT nom FROM products WHERE id = ?', [$pid]);
+        $name = val('SELECT nom FROM products WHERE id = ? AND pharmacy_id = ?', [$pid, ph()]);
         if (!$name) { $errors[] = 'Produit introuvable.'; continue; }
         if ($lot === '') $errors[] = "N° de lot manquant pour « $name ».";
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $per)) $errors[] = "Date de péremption manquante pour « $name ».";
@@ -25,20 +25,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach (array_unique($errors) as $er) flash($er, 'err');
         redirect('receptions', ['new' => 1]);
     }
+    $supplierId = (int)val('SELECT id FROM suppliers WHERE id = ? AND pharmacy_id = ?', [(int)post('supplier_id'), ph()]);
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        q('INSERT INTO receptions (supplier_id, reference, date_reception, user_id) VALUES (?,?,?,?)',
-            [(int)post('supplier_id') ?: null, post('reference') ?: null, post('date_reception') ?: date('Y-m-d'), $me['id']]);
+        q('INSERT INTO receptions (pharmacy_id, supplier_id, reference, date_reception, user_id) VALUES (?,?,?,?,?)',
+            [ph(), $supplierId ?: null, post('reference') ?: null, post('date_reception') ?: date('Y-m-d'), $me['id']]);
         $rid = (int)$pdo->lastInsertId();
         $total = 0;
         foreach ($rows as $r) {
-            q('INSERT INTO lots (product_id, numero_lot, date_peremption, quantite, quantite_initiale, prix_achat, reception_id) VALUES (?,?,?,?,?,?,?)',
-                [$r['pid'], $r['lot'], $r['per'], $r['qty'], $r['qty'], $r['pa'], $rid]);
+            q('INSERT INTO lots (pharmacy_id, product_id, numero_lot, date_peremption, quantite, quantite_initiale, prix_achat, reception_id) VALUES (?,?,?,?,?,?,?,?)',
+                [ph(), $r['pid'], $r['lot'], $r['per'], $r['qty'], $r['qty'], $r['pa'], $rid]);
             $lid = (int)$pdo->lastInsertId();
-            q("INSERT INTO stock_movements (product_id, lot_id, type, quantite, reference, user_id) VALUES (?,?, 'entree', ?, ?, ?)",
-                [$r['pid'], $lid, $r['qty'], 'Réception #' . $rid . (post('reference') ? ' ' . post('reference') : ''), $me['id']]);
-            if ($r['pa'] > 0) q('UPDATE products SET prix_achat = ? WHERE id = ?', [$r['pa'], $r['pid']]);
+            q("INSERT INTO stock_movements (pharmacy_id, product_id, lot_id, type, quantite, reference, user_id) VALUES (?,?,?, 'entree', ?, ?, ?)",
+                [ph(), $r['pid'], $lid, $r['qty'], 'Réception #' . $rid . (post('reference') ? ' ' . post('reference') : ''), $me['id']]);
+            if ($r['pa'] > 0) q('UPDATE products SET prix_achat = ? WHERE id = ? AND pharmacy_id = ?', [$r['pa'], $r['pid'], ph()]);
             $total += $r['qty'] * $r['pa'];
         }
         q('UPDATE receptions SET total = ? WHERE id = ?', [$total, $rid]);
@@ -54,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 page_header('Réceptions fournisseurs', 'receptions');
 
 if (get('new')):
-    $suppliers = all('SELECT id, nom FROM suppliers WHERE actif = 1 ORDER BY nom'); ?>
+    $suppliers = all('SELECT id, nom FROM suppliers WHERE pharmacy_id = ? AND actif = 1 ORDER BY nom', [ph()]); ?>
   <form method="post" class="card" id="reception">
     <?= csrf_field() ?>
     <h2>Nouvelle réception</h2>
@@ -79,8 +80,9 @@ if (get('new')):
 <?php page_footer(); return; endif;
 
 if (get('view')):
-    $r = one('SELECT r.*, s.nom AS fournisseur, u.nom AS user FROM receptions r LEFT JOIN suppliers s ON s.id = r.supplier_id JOIN users u ON u.id = r.user_id WHERE r.id = ?', [(int)get('view')]);
-    $lots = $r ? all('SELECT l.*, p.nom, p.dosage FROM lots l JOIN products p ON p.id = l.product_id WHERE l.reception_id = ?', [$r['id']]) : []; ?>
+    $r = one('SELECT r.*, s.nom AS fournisseur, u.nom AS user FROM receptions r LEFT JOIN suppliers s ON s.id = r.supplier_id JOIN users u ON u.id = r.user_id WHERE r.id = ? AND r.pharmacy_id = ?', [(int)get('view'), ph()]);
+    if (!$r) { echo '<div class="card">Réception introuvable.</div>'; page_footer(); return; }
+    $lots = all('SELECT l.*, p.nom, p.dosage FROM lots l JOIN products p ON p.id = l.product_id WHERE l.reception_id = ?', [$r['id']]); ?>
   <div class="card">
     <h2>Réception #<?= (int)$r['id'] ?> — <?= e($r['fournisseur'] ?? 'Sans fournisseur') ?></h2>
     <p class="muted"><?= dfr($r['date_reception']) ?> · Réf. <?= e($r['reference'] ?: '—') ?> · Saisie par <?= e($r['user']) ?></p>
@@ -94,7 +96,7 @@ if (get('view')):
 <?php page_footer(); return; endif;
 
 $list = all('SELECT r.*, s.nom AS fournisseur, u.nom AS user, (SELECT COUNT(*) FROM lots l WHERE l.reception_id = r.id) AS nb
-             FROM receptions r LEFT JOIN suppliers s ON s.id = r.supplier_id JOIN users u ON u.id = r.user_id ORDER BY r.id DESC LIMIT 100');
+             FROM receptions r LEFT JOIN suppliers s ON s.id = r.supplier_id JOIN users u ON u.id = r.user_id WHERE r.pharmacy_id = ? ORDER BY r.id DESC LIMIT 100', [ph()]);
 ?>
 <div class="card">
   <div class="row between"><h2>Dernières réceptions</h2><a class="btn primary" href="<?= url('receptions', ['new' => 1]) ?>">+ Nouvelle réception</a></div>

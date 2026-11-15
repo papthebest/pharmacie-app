@@ -3,7 +3,7 @@ require_right('stock');
 $me = user();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $lot = one('SELECT l.*, p.nom FROM lots l JOIN products p ON p.id = l.product_id WHERE l.id = ?', [(int)post('lot_id')]);
+    $lot = one('SELECT l.*, p.nom FROM lots l JOIN products p ON p.id = l.product_id WHERE l.id = ? AND l.pharmacy_id = ?', [(int)post('lot_id'), ph()]);
     if (!$lot) redirect('stock');
     $act = post('action');
     $new = $act === 'expire' ? 0 : max(0, intv(post('quantite')));
@@ -12,8 +12,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($diff !== 0) {
         db()->beginTransaction();
         q('UPDATE lots SET quantite = ? WHERE id = ?', [$new, $lot['id']]);
-        q('INSERT INTO stock_movements (product_id, lot_id, type, quantite, reference, user_id) VALUES (?,?,?,?,?,?)',
-            [$lot['product_id'], $lot['id'], $act === 'expire' ? 'peremption' : 'ajustement', $diff, $motif, $me['id']]);
+        q('INSERT INTO stock_movements (pharmacy_id, product_id, lot_id, type, quantite, reference, user_id) VALUES (?,?,?,?,?,?,?)',
+            [ph(), $lot['product_id'], $lot['id'], $act === 'expire' ? 'peremption' : 'ajustement', $diff, $motif, $me['id']]);
         db()->commit();
         flash("Lot {$lot['numero_lot']} de « {$lot['nom']} » : " . ($diff > 0 ? '+' : '') . $diff . ' unité(s).');
     }
@@ -35,7 +35,7 @@ if ($pid) $tab = 'lots';
 <?php if ($tab === 'alertes'):
     $rows = all("SELECT p.id, p.nom, p.dosage, p.forme, p.seuil_alerte,
                  COALESCE((SELECT SUM(quantite) FROM lots l WHERE l.product_id = p.id AND l.date_peremption >= CURDATE()),0) AS stock
-                 FROM products p WHERE p.actif = 1 HAVING stock <= p.seuil_alerte ORDER BY stock, p.nom"); ?>
+                 FROM products p WHERE p.pharmacy_id = ? AND p.actif = 1 HAVING stock <= p.seuil_alerte ORDER BY stock, p.nom", [ph()]); ?>
   <p class="muted">Médicaments dont le stock vendable est inférieur ou égal au seuil d'alerte : à commander.</p>
   <table class="tbl"><thead><tr><th>Médicament</th><th>Forme</th><th class="r">Stock</th><th class="r">Seuil</th><th></th></tr></thead><tbody>
   <?php foreach ($rows as $r): ?>
@@ -51,7 +51,7 @@ if ($pid) $tab = 'lots';
         default => $pid ? 'l.product_id = ' . $pid : 'l.quantite > 0',
     };
     $rows = all("SELECT l.*, p.nom, p.dosage, DATEDIFF(l.date_peremption, CURDATE()) AS jours
-                 FROM lots l JOIN products p ON p.id = l.product_id WHERE $where ORDER BY l.date_peremption, p.nom LIMIT 500");
+                 FROM lots l JOIN products p ON p.id = l.product_id WHERE l.pharmacy_id = ? AND ($where) ORDER BY l.date_peremption, p.nom LIMIT 500", [ph()]);
     if ($pid && $rows) echo '<h2>' . e($rows[0]['nom'] . ' ' . $rows[0]['dosage']) . '</h2>';
     if ($tab === 'perimes') echo '<p class="muted">Ces lots ne peuvent plus être vendus. Retirez-les du stock (le mouvement est tracé).</p>'; ?>
   <table class="tbl"><thead><tr><th>Médicament</th><th>Lot</th><th>Péremption</th><th class="r">Reste</th><th>Ajuster (inventaire)</th></tr></thead><tbody>
@@ -77,7 +77,7 @@ if ($pid) $tab = 'lots';
 </div>
 <?php if ($pid):
     $mv = all('SELECT m.*, u.nom AS user, l.numero_lot FROM stock_movements m JOIN users u ON u.id = m.user_id LEFT JOIN lots l ON l.id = m.lot_id
-               WHERE m.product_id = ? ORDER BY m.id DESC LIMIT 50', [$pid]); ?>
+               WHERE m.product_id = ? AND m.pharmacy_id = ? ORDER BY m.id DESC LIMIT 50', [$pid, ph()]); ?>
   <div class="card"><h2>Derniers mouvements</h2>
     <table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Lot</th><th class="r">Qté</th><th>Référence</th><th>Par</th></tr></thead><tbody>
     <?php foreach ($mv as $m): ?><tr><td><?= dfr($m['created_at'], true) ?></td><td><?= e(ucfirst($m['type'])) ?></td><td><?= e($m['numero_lot']) ?></td>

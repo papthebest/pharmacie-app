@@ -5,7 +5,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = post('action');
     if ($act === 'settings') {
         foreach (['pharmacie_nom', 'pharmacie_adresse', 'pharmacie_tel', 'ticket_pied', 'delai_alerte_peremption'] as $k) {
-            q('REPLACE INTO settings (k, v) VALUES (?, ?)', [$k, post($k)]);
+            q('REPLACE INTO settings (pharmacy_id, k, v) VALUES (?, ?, ?)', [ph(), $k, post($k)]);
+        }
+        if (post('pharmacie_nom') !== '') {
+            q('UPDATE pharmacies SET nom = ?, adresse = ?, telephone = ? WHERE id = ?',
+                [post('pharmacie_nom'), post('pharmacie_adresse') ?: null, post('pharmacie_tel') ?: null, ph()]);
         }
         flash('Paramètres enregistrés.');
     }
@@ -13,23 +17,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)post('id');
         $d = [post('nom'), min(100, max(0, intv(post('taux')))), post('telephone') ?: null, post('actif') ? 1 : 0];
         if ($d[0] === '') flash('Nom obligatoire.', 'err');
-        elseif ($id) q('UPDATE insurers SET nom = ?, taux = ?, telephone = ?, actif = ? WHERE id = ?', [...$d, $id]);
-        else q('INSERT INTO insurers (nom, taux, telephone, actif) VALUES (?,?,?,?)', $d);
+        elseif ($id) q('UPDATE insurers SET nom = ?, taux = ?, telephone = ?, actif = ? WHERE id = ? AND pharmacy_id = ?', [...$d, $id, ph()]);
+        else q('INSERT INTO insurers (nom, taux, telephone, actif, pharmacy_id) VALUES (?,?,?,?,?)', [...$d, ph()]);
         if ($d[0] !== '') flash('Assurance enregistrée.');
     }
     if ($act === 'supplier') {
         $id = (int)post('id');
         $d = [post('nom'), post('telephone') ?: null, post('adresse') ?: null, post('actif') ? 1 : 0];
         if ($d[0] === '') flash('Nom obligatoire.', 'err');
-        elseif ($id) q('UPDATE suppliers SET nom = ?, telephone = ?, adresse = ?, actif = ? WHERE id = ?', [...$d, $id]);
-        else q('INSERT INTO suppliers (nom, telephone, adresse, actif) VALUES (?,?,?,?)', $d);
+        elseif ($id) q('UPDATE suppliers SET nom = ?, telephone = ?, adresse = ?, actif = ? WHERE id = ? AND pharmacy_id = ?', [...$d, $id, ph()]);
+        else q('INSERT INTO suppliers (nom, telephone, adresse, actif, pharmacy_id) VALUES (?,?,?,?,?)', [...$d, ph()]);
         if ($d[0] !== '') flash('Fournisseur enregistré.');
     }
     redirect('parametres');
 }
 
-$insurers = all('SELECT * FROM insurers ORDER BY actif DESC, nom');
-$suppliers = all('SELECT * FROM suppliers ORDER BY actif DESC, nom');
+$insurers = all('SELECT * FROM insurers WHERE pharmacy_id = ? ORDER BY actif DESC, nom', [ph()]);
+$suppliers = all('SELECT * FROM suppliers WHERE pharmacy_id = ? ORDER BY actif DESC, nom', [ph()]);
 page_header('Paramètres', 'parametres');
 ?>
 <form method="post" class="card">

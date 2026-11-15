@@ -5,12 +5,12 @@ $ph = ['nom' => setting('pharmacie_nom', 'Pharmacie'), 'adr' => setting('pharmac
 
 if ($type === 'session') {
     require_right('ventes');
-    $s = one('SELECT c.*, u.nom FROM cash_sessions c JOIN users u ON u.id = c.user_id WHERE c.id = ?', [(int)get('id')]);
+    $s = one('SELECT c.*, u.nom FROM cash_sessions c JOIN users u ON u.id = c.user_id WHERE c.id = ? AND c.pharmacy_id = ?', [(int)get('id'), ph()]);
     if (!$s) exit('Session introuvable');
     $nb = (int)val("SELECT COUNT(*) FROM sales WHERE cash_session_id = ?", [$s['id']]);
 } else {
     $s = one('SELECT s.*, v.nom AS vendeur, c.nom AS caissier, i.nom AS assurance FROM sales s JOIN users v ON v.id = s.vendeur_id
-              LEFT JOIN users c ON c.id = s.caissier_id LEFT JOIN insurers i ON i.id = s.insurer_id WHERE s.id = ?', [(int)get('id')]);
+              LEFT JOIN users c ON c.id = s.caissier_id LEFT JOIN insurers i ON i.id = s.insurer_id WHERE s.id = ? AND s.pharmacy_id = ?', [(int)get('id'), ph()]);
     if (!$s) exit('Bon introuvable');
     $lines = all('SELECT l.*, p.nom, p.dosage FROM sale_lines l JOIN products p ON p.id = l.product_id WHERE l.sale_id = ?', [$s['id']]);
 }

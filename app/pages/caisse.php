@@ -6,7 +6,7 @@ $act = post('action');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($act === 'open' && !$session) {
-        q('INSERT INTO cash_sessions (user_id, fond_initial) VALUES (?, ?)', [$me['id'], max(0, intv(post('fond_initial')))]);
+        q('INSERT INTO cash_sessions (pharmacy_id, user_id, fond_initial) VALUES (?, ?, ?)', [ph(), $me['id'], max(0, intv(post('fond_initial')))]);
         flash('Caisse ouverte.');
         redirect('caisse');
     }
@@ -19,21 +19,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo = db();
         $pdo->beginTransaction();
         try {
-            $sale = one("SELECT * FROM sales WHERE id = ? FOR UPDATE", [$sid]);
+            $sale = one("SELECT * FROM sales WHERE id = ? AND pharmacy_id = ? FOR UPDATE", [$sid, ph()]);
             if (!$sale || $sale['statut'] !== 'en_attente') throw new DomainException('Ce bon n\'est plus en attente.');
             $recu = $mode === 'especes' ? intv(post('montant_recu')) : (int)$sale['part_patient'];
             if ($recu < (int)$sale['part_patient']) throw new DomainException('Montant reçu insuffisant.');
             foreach (all('SELECT l.*, p.nom FROM sale_lines l JOIN products p ON p.id = l.product_id WHERE l.sale_id = ?', [$sid]) as $line) {
                 $need = (int)$line['quantite'];
-                $lots = all('SELECT id, quantite FROM lots WHERE product_id = ? AND quantite > 0 AND date_peremption >= CURDATE()
-                             ORDER BY date_peremption, id FOR UPDATE', [$line['product_id']]);
+                $lots = all('SELECT id, quantite FROM lots WHERE pharmacy_id = ? AND product_id = ? AND quantite > 0 AND date_peremption >= CURDATE()
+                             ORDER BY date_peremption, id FOR UPDATE', [ph(), $line['product_id']]);
                 foreach ($lots as $lot) {
                     if ($need <= 0) break;
                     $take = min($need, (int)$lot['quantite']);
                     q('UPDATE lots SET quantite = quantite - ? WHERE id = ?', [$take, $lot['id']]);
                     q('INSERT INTO sale_line_lots (sale_line_id, lot_id, quantite) VALUES (?,?,?)', [$line['id'], $lot['id'], $take]);
-                    q("INSERT INTO stock_movements (product_id, lot_id, type, quantite, reference, user_id) VALUES (?,?, 'vente', ?, ?, ?)",
-                        [$line['product_id'], $lot['id'], -$take, 'Bon ' . $sale['numero'], $me['id']]);
+                    q("INSERT INTO stock_movements (pharmacy_id, product_id, lot_id, type, quantite, reference, user_id) VALUES (?,?,?, 'vente', ?, ?, ?)",
+                        [ph(), $line['product_id'], $lot['id'], -$take, 'Bon ' . $sale['numero'], $me['id']]);
                     $need -= $take;
                 }
                 if ($need > 0) throw new DomainException("Stock insuffisant pour « {$line['nom']} » (il manque {$need}). Le bon ne peut pas être encaissé.");
@@ -60,8 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sid = (int)post('sale_id');
         $motif = post('motif');
         if ($motif === '') { flash('Indiquez le motif d\'annulation.', 'err'); redirect('caisse', ['id' => $sid]); }
-        $n = q("UPDATE sales SET statut = 'annulee', cancelled_at = NOW(), cancelled_by = ?, cancel_motif = ? WHERE id = ? AND statut = 'en_attente'",
-            [$me['id'], $motif, $sid])->rowCount();
+        $n = q("UPDATE sales SET statut = 'annulee', cancelled_at = NOW(), cancelled_by = ?, cancel_motif = ? WHERE id = ? AND pharmacy_id = ? AND statut = 'en_attente'",
+            [$me['id'], $motif, $sid, ph()])->rowCount();
         flash($n ? 'Bon annulé.' : 'Ce bon n\'est plus en attente.', $n ? 'ok' : 'err');
         redirect('caisse');
     }
@@ -89,9 +89,9 @@ if (!$session): ?>
 <?php page_footer(); return; endif;
 
 $sel = get('id') ? one("SELECT s.*, u.nom AS vendeur, i.nom AS assurance FROM sales s JOIN users u ON u.id = s.vendeur_id
-                         LEFT JOIN insurers i ON i.id = s.insurer_id WHERE s.id = ?", [(int)get('id')]) : null;
+                         LEFT JOIN insurers i ON i.id = s.insurer_id WHERE s.id = ? AND s.pharmacy_id = ?", [(int)get('id'), ph()]) : null;
 $selLines = $sel ? all('SELECT l.*, p.nom, p.dosage, p.forme FROM sale_lines l JOIN products p ON p.id = l.product_id WHERE l.sale_id = ?', [$sel['id']]) : [];
-$paid = get('paid') ? one('SELECT id, numero FROM sales WHERE id = ?', [(int)get('paid')]) : null;
+$paid = get('paid') ? one('SELECT id, numero FROM sales WHERE id = ? AND pharmacy_id = ?', [(int)get('paid'), ph()]) : null;
 $encaisse = (int)$session['total_especes'] + (int)$session['total_mobile'] + (int)$session['total_carte'];
 $nbVentes = (int)val("SELECT COUNT(*) FROM sales WHERE cash_session_id = ?", [$session['id']]);
 ?>

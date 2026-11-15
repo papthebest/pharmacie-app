@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pid = (int)($c['id'] ?? 0);
         $qty = (int)($c['qty'] ?? 0);
         if ($pid <= 0 || $qty <= 0) continue;
-        $p = one('SELECT * FROM products WHERE id = ? AND actif = 1', [$pid]);
+        $p = one('SELECT * FROM products WHERE id = ? AND pharmacy_id = ? AND actif = 1', [$pid, ph()]);
         if (!$p) { $errors[] = 'Produit introuvable.'; continue; }
         if ((int)$p['stupefiant'] === 1 && !can('stupefiant_vente')) $errors[] = "« {$p['nom']} » est un stupéfiant : seul un pharmacien peut le délivrer.";
         if ((int)$p['ordonnance'] === 1) $needOrd = true;
@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $insurer = null;
     if ((int)post('insurer_id') > 0) {
-        $insurer = one('SELECT * FROM insurers WHERE id = ? AND actif = 1', [(int)post('insurer_id')]);
+        $insurer = one('SELECT * FROM insurers WHERE id = ? AND pharmacy_id = ? AND actif = 1', [(int)post('insurer_id'), ph()]);
         if (!$insurer) $errors[] = 'Assurance introuvable.';
         elseif (post('num_assure') === '') $errors[] = 'Renseignez le numéro d\'assuré.';
     }
@@ -41,15 +41,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
         try {
             $prefix = 'B' . date('ymd') . '-';
-            $last = val('SELECT numero FROM sales WHERE numero LIKE ? ORDER BY numero DESC LIMIT 1 FOR UPDATE', [$prefix . '%']);
+            $last = val('SELECT numero FROM sales WHERE pharmacy_id = ? AND numero LIKE ? ORDER BY numero DESC LIMIT 1 FOR UPDATE', [ph(), $prefix . '%']);
             $numero = $prefix . str_pad((string)($last ? (int)substr($last, -3) + 1 : 1), 3, '0', STR_PAD_LEFT);
             $total = 0;
             foreach ($lines as $l) $total += $l['qty'] * (int)$l['p']['prix_vente'];
             $taux = $insurer ? (int)$insurer['taux'] : 0;
             $partAss = (int)round($total * $taux / 100);
-            q('INSERT INTO sales (numero, vendeur_id, client_nom, insurer_id, taux_assurance, num_assure, total, part_assurance, part_patient,
-                                  ordonnance_num, ordonnance_date, medecin, patient_nom) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', [
-                $numero, $me['id'], post('client_nom') ?: null, $insurer['id'] ?? null, $taux, $insurer ? post('num_assure') : null,
+            q('INSERT INTO sales (pharmacy_id, numero, vendeur_id, client_nom, insurer_id, taux_assurance, num_assure, total, part_assurance, part_patient,
+                                  ordonnance_num, ordonnance_date, medecin, patient_nom) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
+                ph(), $numero, $me['id'], post('client_nom') ?: null, $insurer['id'] ?? null, $taux, $insurer ? post('num_assure') : null,
                 $total, $partAss, $total - $partAss,
                 $ord['num'] ?: null, $ord['date'] ?: null, $ord['medecin'] ?: null, $ord['patient'] ?: null,
             ]);
@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $old = $_SESSION['comptoir_form'] ?? [];
 unset($_SESSION['comptoir_form']);
-$insurers = all('SELECT id, nom, taux FROM insurers WHERE actif = 1 ORDER BY nom');
+$insurers = all('SELECT id, nom, taux FROM insurers WHERE pharmacy_id = ? AND actif = 1 ORDER BY nom', [ph()]);
 $lastBon = get('bon') ? one('SELECT numero, total, part_patient FROM sales WHERE id = ? AND vendeur_id = ?', [(int)get('bon'), $me['id']]) : null;
 $mine = all("SELECT s.id, s.numero, s.statut, s.total, s.part_patient, s.created_at, s.client_nom, s.patient_nom
              FROM sales s WHERE s.vendeur_id = ? AND DATE(s.created_at) = CURDATE() ORDER BY s.id DESC LIMIT 12", [$me['id']]);

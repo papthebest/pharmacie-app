@@ -2,8 +2,8 @@
 require_right('rapports');
 $du = get('du', date('Y-m-01'));
 $au = get('au', date('Y-m-d'));
-$p = [$du, $au];
-$base = "s.statut = 'payee' AND DATE(s.paid_at) BETWEEN ? AND ?";
+$p = [ph(), $du, $au];
+$base = "s.pharmacy_id = ? AND s.statut = 'payee' AND DATE(s.paid_at) BETWEEN ? AND ?";
 
 $tot = one("SELECT COUNT(*) nb, COALESCE(SUM(total),0) ca, COALESCE(SUM(part_patient),0) pat, COALESCE(SUM(part_assurance),0) ass FROM sales s WHERE $base", $p);
 $cout = (int)val("SELECT COALESCE(SUM(sll.quantite * lo.prix_achat),0) FROM sales s JOIN sale_lines l ON l.sale_id = s.id
@@ -14,8 +14,8 @@ $vendeurs = all("SELECT u.nom, COUNT(*) nb, SUM(s.total) t FROM sales s JOIN use
 $top = all("SELECT pr.nom, pr.dosage, SUM(l.quantite) q, SUM(l.total) t FROM sales s JOIN sale_lines l ON l.sale_id = s.id JOIN products pr ON pr.id = l.product_id
             WHERE $base GROUP BY pr.id ORDER BY t DESC LIMIT 15", $p);
 $ass = all("SELECT i.nom, COUNT(*) nb, SUM(s.part_assurance) t FROM sales s JOIN insurers i ON i.id = s.insurer_id WHERE $base AND s.part_assurance > 0 GROUP BY i.id ORDER BY t DESC", $p);
-$annul = (int)val("SELECT COUNT(*) FROM sales s WHERE s.statut = 'annulee' AND DATE(s.cancelled_at) BETWEEN ? AND ?", $p);
-$valStock = (int)val("SELECT COALESCE(SUM(quantite * prix_achat),0) FROM lots WHERE quantite > 0 AND date_peremption >= CURDATE()");
+$annul = (int)val("SELECT COUNT(*) FROM sales s WHERE s.pharmacy_id = ? AND s.statut = 'annulee' AND DATE(s.cancelled_at) BETWEEN ? AND ?", $p);
+$valStock = (int)val("SELECT COALESCE(SUM(quantite * prix_achat),0) FROM lots WHERE pharmacy_id = ? AND quantite > 0 AND date_peremption >= CURDATE()", [ph()]);
 
 page_header('Rapports', 'rapports');
 ?>

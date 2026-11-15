@@ -6,9 +6,9 @@ $rows = all("SELECT m.created_at, m.type, m.quantite, m.reference, p.nom, p.dosa
                     s.numero, s.patient_nom, s.medecin, s.ordonnance_num, s.ordonnance_date
              FROM stock_movements m JOIN products p ON p.id = m.product_id JOIN users u ON u.id = m.user_id
              LEFT JOIN lots l ON l.id = m.lot_id
-             LEFT JOIN sales s ON m.type = 'vente' AND s.numero = SUBSTRING(m.reference, 5)
-             WHERE p.stupefiant = 1 AND DATE(m.created_at) BETWEEN ? AND ?
-             ORDER BY p.nom, m.created_at", [$du, $au]);
+             LEFT JOIN sales s ON m.type = 'vente' AND s.pharmacy_id = m.pharmacy_id AND s.numero = SUBSTRING(m.reference, 5)
+             WHERE m.pharmacy_id = ? AND p.stupefiant = 1 AND DATE(m.created_at) BETWEEN ? AND ?
+             ORDER BY p.nom, m.created_at", [ph(), $du, $au]);
 page_header('Registre des stupéfiants', 'stupefiants');
 ?>
 <div class="card">

@@ -6,7 +6,7 @@ $isCaissier = $me['role'] === 'caissier';
 page_header('Ventes', 'ventes');
 
 if (get('session')):
-    $s = one('SELECT c.*, u.nom FROM cash_sessions c JOIN users u ON u.id = c.user_id WHERE c.id = ?', [(int)get('session')]);
+    $s = one('SELECT c.*, u.nom FROM cash_sessions c JOIN users u ON u.id = c.user_id WHERE c.id = ? AND c.pharmacy_id = ?', [(int)get('session'), ph()]);
     if (!$s || ($isCaissier && (int)$s['user_id'] !== (int)$me['id'])) { echo '<div class="card">Session introuvable.</div>'; page_footer(); return; } ?>
   <div class="card">
     <div class="row between"><h2>Caisse de <?= e($s['nom']) ?> — <?= dfr($s['opened_at'], true) ?></h2>
@@ -32,7 +32,7 @@ if ($num !== '') { $w .= ' AND s.numero LIKE ?'; $params[] = '%' . $num . '%'; }
 if (get('session')) { $w = 's.cash_session_id = ?'; $params = [(int)get('session')]; }
 $rows = all("SELECT s.*, v.nom AS vendeur, c.nom AS caissier, i.nom AS assurance FROM sales s
              JOIN users v ON v.id = s.vendeur_id LEFT JOIN users c ON c.id = s.caissier_id LEFT JOIN insurers i ON i.id = s.insurer_id
-             WHERE $w ORDER BY s.id DESC LIMIT 500", $params);
+             WHERE s.pharmacy_id = ? AND ($w) ORDER BY s.id DESC LIMIT 500", [ph(), ...$params]);
 $sum = array_sum(array_map(fn($r) => $r['statut'] === 'payee' ? (int)$r['total'] : 0, $rows));
 ?>
 <div class="card">
@@ -62,7 +62,7 @@ $sum = array_sum(array_map(fn($r) => $r['statut'] === 'payee' ? (int)$r['total']
 </div>
 
 <?php
-$sessions = all('SELECT c.*, u.nom FROM cash_sessions c JOIN users u ON u.id = c.user_id ' . ($isCaissier ? 'WHERE c.user_id = ' . (int)$me['id'] : '') . ' ORDER BY c.id DESC LIMIT 30');
+$sessions = all('SELECT c.*, u.nom FROM cash_sessions c JOIN users u ON u.id = c.user_id WHERE c.pharmacy_id = ? ' . ($isCaissier ? 'AND c.user_id = ' . (int)$me['id'] : '') . ' ORDER BY c.id DESC LIMIT 30', [ph()]);
 ?>
 <div class="card">
   <h2>Sessions de caisse</h2>
