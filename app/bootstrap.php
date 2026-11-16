@@ -82,6 +82,8 @@ function dfr(?string $d, bool $time = false): string
 }
 function url(string $page, array $params = []): string
 {
+    // La connexion de l'administration a une adresse propre : /admin
+    if ($page === 'admin_login' && !$params) return 'admin';
     return 'index.php?' . http_build_query(['p' => $page] + $params);
 }
 function redirect(string $page, array $params = []): never

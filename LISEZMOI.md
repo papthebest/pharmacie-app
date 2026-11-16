@@ -6,7 +6,7 @@ Application web PHP 8 + MySQL multi-pharmacies, sans dépendance, prévue pour l
 
 Une seule installation sert plusieurs pharmacies. Chaque pharmacie a ses propres utilisateurs, médicaments, stock, ventes et caisse ; les données d'une pharmacie ne sont jamais visibles par une autre.
 
-- **Administration de la plateforme** (`index.php?p=admin`) : le super-administrateur crée les pharmacies et leur gérant, suit les abonnements, suspend ou supprime un compte et réinitialise le mot de passe d'un gérant.
+- **Administration de la plateforme** (`/admin`) : le super-administrateur crée les pharmacies et leur gérant, suit les abonnements, suspend ou supprime un compte et réinitialise le mot de passe d'un gérant.
 - **Abonnement** : chaque pharmacie a une date de fin d'abonnement. Après paiement, le super-administrateur la prolonge (+1, +3, +6 mois ou +1 an). Le lendemain de l'échéance, l'accès de la pharmacie est bloqué ; le gérant est prévenu 7 jours avant.
 - **Connexion du personnel** (`index.php`) : code pharmacie + identifiant + mot de passe. Le même identifiant peut exister dans deux pharmacies.
 
@@ -34,7 +34,7 @@ Une seule installation sert plusieurs pharmacies. Chaque pharmacie a ses propres
 4. **SSL** : activez le certificat gratuit pour le domaine. L'application force le HTTPS.
 5. Ouvrez `https://votre-domaine/install.php`. Le serveur MySQL est `localhost`. Saisissez la base, l'utilisateur et le mot de passe, puis le compte super-administrateur.
 6. **Supprimez `install.php`** du serveur une fois l'installation terminée.
-7. Ouvrez `index.php?p=admin`, connectez-vous et créez la première pharmacie avec son gérant.
+7. Ouvrez `https://votre-domaine/admin`, connectez-vous et créez la première pharmacie avec son gérant.
 8. Le gérant se connecte avec le code pharmacie et suit cet ordre :
    1. Paramètres : assurances et fournisseurs ;
    2. Utilisateurs ;

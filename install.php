@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="brand big"><span class="logo">✚</span><div><strong>PharmaFlow</strong><small>Installation terminée</small></div></div>
     <p>L'application est installée. <strong>Supprimez maintenant le fichier <code>install.php</code></strong> du serveur.</p>
     <p>Connectez-vous à l'espace d'administration pour créer votre première pharmacie.</p>
-    <a class="btn primary block" href="index.php?p=admin_login">Ouvrir l'administration</a>
+    <a class="btn primary block" href="admin">Ouvrir l'administration</a>
   </div>
 <?php else: ?>
   <form method="post" class="card login wide">
