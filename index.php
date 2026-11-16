@@ -14,6 +14,10 @@ if (str_starts_with($page, 'admin')) {
 }
 
 /* ---------- Espace pharmacie ---------- */
+// La racine du site sert la connexion tant que personne n'est connecté.
+if (!user() && !isset($_GET['p'])) $page = 'login';
+// Ancienne adresse de connexion : on renvoie vers la racine.
+if ($page === 'login' && isset($_GET['p']) && $_SERVER['REQUEST_METHOD'] === 'GET') redirect('login');
 $public = ['login'];
 if (!user() && !in_array($page, $public, true)) {
     if ($page === 'api') json_out(['error' => 'Session expirée, reconnectez-vous.'], 401);

@@ -8,7 +8,7 @@ Une seule installation sert plusieurs pharmacies. Chaque pharmacie a ses propres
 
 - **Administration de la plateforme** (`/admin`) : le super-administrateur crée les pharmacies et leur gérant, suit les abonnements, suspend ou supprime un compte et réinitialise le mot de passe d'un gérant.
 - **Abonnement** : chaque pharmacie a une date de fin d'abonnement. Après paiement, le super-administrateur la prolonge (+1, +3, +6 mois ou +1 an). Le lendemain de l'échéance, l'accès de la pharmacie est bloqué ; le gérant est prévenu 7 jours avant.
-- **Connexion du personnel** (`index.php`) : code pharmacie + identifiant + mot de passe. Le même identifiant peut exister dans deux pharmacies.
+- **Connexion du personnel** (racine du site `/`) : code pharmacie + identifiant + mot de passe. Le même identifiant peut exister dans deux pharmacies.
 
 ## Fonctions
 

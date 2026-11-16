@@ -84,6 +84,8 @@ function url(string $page, array $params = []): string
 {
     // La connexion de l'administration a une adresse propre : /admin
     if ($page === 'admin_login' && !$params) return 'admin';
+    // La connexion des pharmacies se fait à la racine du site.
+    if (($page === 'login' || $page === 'dashboard') && !$params) return './';
     return 'index.php?' . http_build_query(['p' => $page] + $params);
 }
 function redirect(string $page, array $params = []): never
